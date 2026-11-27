@@ -1,0 +1,79 @@
+# Example robot electrical system spec with a few intentional issues,
+# to demonstrate what harness-check catches.
+name: demo-rover
+
+battery:
+  name: main-pack
+  nominal_voltage: 14.8      # 4S Li-ion
+  capacity_ah: 10.0
+  max_discharge_c: 2.0       # 20 A max continuous
+  usable_fraction: 0.8
+
+loads:
+  - id: drive-motors
+    name: Drive motor controllers (x2)
+    rail_voltage: 14.8
+    current:
+      idle: 0.5
+      nominal: 8.0
+      peak: 18.0
+    connector: main-power-conn
+    fuse: main-fuse
+
+  - id: sbc
+    name: Onboard computer (Jetson)
+    rail_voltage: 5.0
+    current:
+      idle: 1.0
+      nominal: 2.5
+      peak: 3.0
+    connector: logic-conn
+
+  - id: lidar
+    name: 2D LiDAR
+    rail_voltage: 5.0
+    current:
+      idle: 0.3
+      nominal: 0.4
+    connector: logic-conn
+
+cables:
+  # This run is long and thin enough to trip the voltage-drop check.
+  - id: cable-drive-power
+    load: drive-motors
+    awg: 20
+    length_m: 1.5
+    round_trip: true
+    max_drop_pct: 3.0
+
+  - id: cable-sbc-power
+    load: sbc
+    awg: 22
+    length_m: 0.3
+
+  - id: cable-lidar-power
+    load: lidar
+    awg: 26
+    length_m: 0.4
+
+connectors:
+  # Rated too low for the drive motors' peak current -> should flag an error.
+  - id: main-power-conn
+    part: XT30
+    rated_current_a: 15
+    pins:
+      - { pin: "1", signal: "VBAT+" }
+      - { pin: "2", signal: "VBAT-" }
+
+  - id: logic-conn
+    part: JST-XH-6
+    rated_current_a: 3
+    pins:
+      - { pin: "1", signal: "5V" }
+      - { pin: "2", signal: "GND" }
+      - { pin: "2", signal: "SDA" }   # duplicate pin number -> should flag a conflict
+      - { pin: "4", signal: "SCL" }
+
+fuses:
+  - id: main-fuse
+    rated_current_a: 10   # below drive-motor peak (18 A) but above nominal (8 A) -> should flag a warning
